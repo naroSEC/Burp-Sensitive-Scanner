@@ -1,0 +1,38 @@
+plugins {
+    id 'java'
+    id 'com.gradleup.shadow' version '8.3.6'
+}
+
+group = 'io.github.sensitivescanner'
+version = '1.0.0'
+
+repositories { mavenCentral() }
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+dependencies {
+    compileOnly 'net.portswigger.burp.extensions:montoya-api:2026.2'
+    implementation 'org.apache.commons:commons-csv:1.14.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.20.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.13.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.13.4'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+tasks.test { useJUnitPlatform() }
+
+tasks.shadowJar {
+    archiveBaseName = 'burp-sensitive-scanner'
+    archiveClassifier = ''
+    mergeServiceFiles()
+}
+
+tasks.jar { enabled = false }
+tasks.build { dependsOn tasks.shadowJar }
