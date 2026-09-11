@@ -31,7 +31,7 @@ Extension은 Montoya API `2026.2`를 기준으로 빌드됩니다. Montoya API�
 빌드가 끝나면 다음 파일이 생성됩니다.
 
 ```text
-build/libs/burp-sensitive-scanner-1.0.1.jar
+build/libs/burp-sensitive-scanner-1.1.0.jar
 ```
 
 Burp에서 **Extensions → Installed → Add → Java**를 선택하고 JAR 파일을 지정합니다. 설치가 완료되면 상단에 **Sensitive Scanner** 탭이 나타납니다.
@@ -68,19 +68,28 @@ Base64 여부가 확실하지 않은 값은 원문을 그대로 보관합니다.
 
 ## Detection
 
-기본 rule set은 다음 credential을 다룹니다.
+기본 rule set은 다음 항목을 다룹니다.
 
 - AWS access key ID, secret access key, session token
 - Google API key와 GCP service account credential
 - Azure client secret 후보
-- GitHub, GitLab, Slack, Stripe token
+- GitHub, GitLab, Slack, Stripe, SendGrid, Mailgun, NuGet, Square, Twilio, OpenAI token
 - JWT, Bearer token, Basic Authorization
 - API key, API secret, client secret, access/refresh/session token
 - RSA, EC, OpenSSH, PKCS#8 및 일반 PEM private key
 - JDBC, PostgreSQL, MySQL, MongoDB, Redis credential URI
 - 민감한 field 이름과 결합된 generic secret
+- AWS S3, Azure Blob Storage, Google Cloud Storage, Firebase URL과 AWS ARN
+- 이메일 주소와 사설 IPv4 주소
+- 인증서, 키 저장소, 데이터베이스, VPN 설정, 백업 및 패킷 캡처 파일
+- PHP, ASP.NET, JSP, ColdFusion을 포함한 서버 사이드 소스 파일
+- `.env`, `.git/config`, cloud credential, Terraform state, source map, heap dump 같은 노출 위험 파일
 
-Request URL, query, header, cookie와 body를 검사하고 response header, Set-Cookie와 body도 분석합니다. JavaScript와 source map 응답은 별도 위치로 표시됩니다.
+Request URL, request header, request body, response header, response body를 각각 켜고 끌 수 있습니다. Rules 탭에서는 rule마다 검사 영역을 별도로 지정할 수 있습니다. URL과 파일명 전용 rule은 body를 훑지 않으므로 일반 문서에 등장하는 확장자 때문에 결과가 늘어나는 일을 줄였습니다.
+
+기본 rule은 개별적으로 활성화할 수 있으며 **Add Regex**에서 사용자 정규식을 추가할 수 있습니다. 이름, 설명, severity와 검사 영역을 함께 저장하고, 잘못된 정규식은 등록 전에 확인합니다. 기본 rule의 정규식은 고정되어 있지만 검사 영역은 편집할 수 있습니다.
+
+Rule 범위는 PortSwigger의 [Sensitive Discoverer](https://github.com/portswigger/sensitive-discoverer)가 제공하는 credential, cloud resource, 민감 파일 확장자를 기준으로 빠짐없이 대조했고, web security assessment에서 자주 확인하는 source code, infrastructure configuration, CI/CD credential file을 추가했습니다.
 
 단순히 긴 문자열을 secret으로 간주하지 않습니다. 각 rule은 vendor prefix, token 구조, field 이름, 길이, 문자 집합과 Shannon entropy를 조합해 confidence를 계산합니다. UUID, 일반적인 hash, 긴 숫자 ID, frontend asset hash 및 placeholder는 별도로 걸러냅니다.
 
@@ -92,9 +101,9 @@ Response Body -> Base64 decoded -> AWS Access Key ID
 
 ## Findings
 
-결과에는 rule ID, category, severity, confidence, traffic source, Burp tool, URL, 위치, field 이름과 detection path가 포함됩니다. Finding을 선택하면 Burp native HTTP editor에서 원본 request와 response를 확인할 수 있습니다.
+결과 목록은 **Severity, Confidence, Description, Match, URL, Section**만 표시합니다. 상단 검색창으로 현재 결과를 즉시 좁힐 수 있으며, finding을 선택하면 Burp native HTTP editor에서 원본 request와 response를 확인할 수 있습니다. Rule ID, category, field 이름, traffic source와 decoding path 같은 조사 정보는 Finding Details에 정리됩니다.
 
-목록과 export 파일에서는 credential 원문을 노출하지 않습니다. 화면에는 마스킹한 evidence만 표시하며, 중복 판별에는 원문 대신 SHA-256 hash를 사용합니다.
+탐지된 값은 목록, 상세 화면, JSON과 CSV export에 마스킹 없이 표시됩니다. 중복 판별에는 SHA-256 hash를 사용하며 hash 값은 화면에 노출하지 않습니다. 사용자 정규식이 매우 큰 구간을 한 번에 잡은 경우에는 finding 하나가 heap을 점유하지 않도록 match를 64 KiB에서 잘라 표시합니다.
 
 Transaction 중복 제거에는 HTTP method, normalized URL, HTTP service, request bytes와 response bytes를 함께 사용합니다. 같은 URL이라도 request 또는 response 내용이 다르면 별도 트랜잭션으로 취급합니다.
 
@@ -107,12 +116,13 @@ Scan은 Swing EDT 밖의 background worker에서 실행됩니다. 진행률을 �
 UI에서 다음 항목을 조정할 수 있습니다.
 
 - Target scope 또는 전체 트래픽
-- request/response 검사 여부
+- request URL/header/body와 response header/body 검사 여부
 - 최대 body 크기
 - entropy threshold
 - 최대 decoding 깊이
 - minimum confidence
-- rule별 활성화 여부
+- rule별 활성화 여부와 검사 영역
+- 사용자 정규식 추가, 편집, 삭제
 - live capture 최대 entry 수
 
 Live capture repository는 최대 20,000개 또는 64 MiB까지 보관합니다. Logger import 데이터는 별도 repository에서 최대 128 MiB까지 유지합니다. 어느 한도에든 도달하면 오래된 항목부터 제거하고 UI에 누적 수를 표시합니다.

@@ -47,6 +47,7 @@ public final class DetectionEngine {
         private final ScanSettings settings;
         private final AtomicBoolean cancelled;
         private final Set<Fingerprints.DigestKey> uniqueTraffic = new HashSet<>();
+        private final Map<io.github.sensitivescanner.model.ScanArea,List<DetectionRule>> rulesByArea = new java.util.EnumMap<>(io.github.sensitivescanner.model.ScanArea.class);
         private final Map<String, Finding> findings = new LinkedHashMap<>();
         private final Map<Fingerprints.DigestKey, TrafficTransaction> retainedTraffic = new HashMap<>();
         private final Set<Fingerprints.DigestKey> omittedTraffic = new HashSet<>();
@@ -61,6 +62,12 @@ public final class DetectionEngine {
         private ScanSession(ScanSettings settings, AtomicBoolean cancelled) {
             this.settings = settings;
             this.cancelled = cancelled;
+            for (var area : io.github.sensitivescanner.model.ScanArea.values()) rulesByArea.put(area, new ArrayList<>());
+            for (DetectionRule rule : rules) {
+                if (settings.disabledRules.contains(rule.id())) continue;
+                Set<io.github.sensitivescanner.model.ScanArea> configured = settings.ruleAreas.getOrDefault(rule.id(), rule.areas());
+                for (var area : configured) if (settings.enabledAreas.contains(area)) rulesByArea.get(area).add(rule);
+            }
         }
 
         public void accept(TrafficTransaction transaction) {
@@ -81,9 +88,11 @@ public final class DetectionEngine {
                 List<TextArtifact> artifacts = extract(transaction, binaryRequest, binaryResponse);
                 for (TextArtifact raw : artifacts) {
                     if (cancelled.get()) return;
+                    var rawArea = io.github.sensitivescanner.model.ScanArea.from(raw.location());
+                    if (rulesByArea.get(rawArea).isEmpty()) continue;
                     for (TextArtifact artifact : normalizer.expand(raw, settings)) {
-                        for (DetectionRule rule : rules) {
-                            if (settings.disabledRules.contains(rule.id())) continue;
+                        var area = io.github.sensitivescanner.model.ScanArea.from(artifact.location());
+                        for (DetectionRule rule : rulesByArea.get(area)) {
                             for (RuleMatch match : rule.find(artifact, settings)) {
                                 addFinding(transaction, transactionKey, artifact, rule, match);
                             }
@@ -115,8 +124,13 @@ public final class DetectionEngine {
             findings.put(fingerprint, new Finding(
                     fingerprint, rule.id(), rule.category(), rule.name(), rule.description(),
                     rule.severity(), match.confidence(), artifact.location(), match.fieldName(),
-                    artifact.path(), SecretUtils.mask(match.value()), Fingerprints.hash(match.value()),
+                    artifact.path(), evidence(match.value()), Fingerprints.hash(match.value()),
                     findingTraffic));
+        }
+
+        private String evidence(String value) {
+            if (value.length() <= settings.maximumEvidenceLength) return value;
+            return value.substring(0, settings.maximumEvidenceLength) + "\n[match truncated at " + settings.maximumEvidenceLength + " characters]";
         }
 
         private TrafficTransaction trafficForFinding(Fingerprints.DigestKey key,
