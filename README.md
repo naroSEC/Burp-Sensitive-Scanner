@@ -31,7 +31,7 @@ Extension은 Montoya API `2026.2`를 기준으로 빌드됩니다. Montoya API�
 빌드가 끝나면 다음 파일이 생성됩니다.
 
 ```text
-build/libs/burp-sensitive-scanner-1.1.1.jar
+build/libs/burp-sensitive-scanner-1.1.2.jar
 ```
 
 Burp에서 **Extensions → Installed → Add → Java**를 선택하고 JAR 파일을 지정합니다. 설치가 완료되면 상단에 **Sensitive Scanner** 탭이 나타납니다.
@@ -101,7 +101,7 @@ Response Body -> Base64 decoded -> AWS Access Key ID
 
 ## Findings
 
-결과 목록은 **Severity, Confidence, Description, Match, URL, Section**만 표시합니다. 상단 검색창으로 현재 결과를 즉시 좁힐 수 있으며, finding을 선택하면 Burp native HTTP editor에서 원본 request와 response를 확인할 수 있습니다. Rule ID, category, field 이름, traffic source와 decoding path 같은 조사 정보는 Finding Details에 정리됩니다.
+결과 목록은 **Severity, Confidence, Description, Match, URL, Section**만 표시합니다. 상단 검색창으로 현재 결과를 즉시 좁힐 수 있으며, finding을 선택하면 Burp native HTTP editor에서 원본 request와 response를 확인할 수 있습니다. Response에서 탐지된 finding은 Response 탭을 열 때 match가 자동으로 강조되고 해당 위치로 이동합니다. URL encoding, HTML entity, JSON escape와 단독 Base64 표현도 원문 위치를 찾아 강조합니다. Rule ID, category, field 이름, traffic source와 decoding path 같은 조사 정보는 Finding Details에 정리됩니다.
 
 탐지된 값은 목록, 상세 화면, JSON과 CSV export에 마스킹 없이 표시됩니다. 중복 판별에는 SHA-256 hash를 사용하며 hash 값은 화면에 노출하지 않습니다. 사용자 정규식이 매우 큰 구간을 한 번에 잡은 경우에는 finding 하나가 heap을 점유하지 않도록 match를 64 KiB에서 잘라 표시합니다.
 
