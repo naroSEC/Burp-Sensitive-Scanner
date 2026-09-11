@@ -23,6 +23,7 @@ public final class TrafficRepository {
         return new AddResult(added, duplicate);
     }
     public synchronized List<TrafficTransaction> snapshot() { return List.copyOf(entries.values()); }
+    public synchronized Optional<TrafficTransaction> find(Fingerprints.DigestKey key) { return Optional.ofNullable(entries.get(key)); }
     public synchronized int size() { return entries.size(); }
     public synchronized long storedBytes() { return storedBytes; }
     public synchronized long evicted() { return evicted; }

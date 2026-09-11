@@ -1,18 +1,21 @@
 package io.github.sensitivescanner.model;
 
 import io.github.sensitivescanner.traffic.TrafficTransaction;
+import io.github.sensitivescanner.traffic.Fingerprints;
 import java.time.Instant;
 
 public final class Finding {
     private final String fingerprint, ruleId, category, type, description, fieldName, detectionPath, evidence, valueHash;
     private final Severity severity; private final Confidence confidence; private final Location location;
     private final TrafficTransaction traffic; private final Instant firstSeen; private int occurrences;
+    private final Fingerprints.DigestKey trafficKey;
     public Finding(String fingerprint,String ruleId,String category,String type,String description,Severity severity,
                    Confidence confidence,Location location,String fieldName,String detectionPath,String evidence,
-                   String valueHash,TrafficTransaction traffic) {
+                   String valueHash,TrafficTransaction traffic,Fingerprints.DigestKey trafficKey) {
         this.fingerprint=fingerprint;this.ruleId=ruleId;this.category=category;this.type=type;this.description=description;
         this.severity=severity;this.confidence=confidence;this.location=location;this.fieldName=fieldName==null?"":fieldName;
         this.detectionPath=detectionPath;this.evidence=evidence;this.valueHash=valueHash;this.traffic=traffic;
+        this.trafficKey=trafficKey;
         this.firstSeen=traffic.timestamp();this.occurrences=1;
     }
     public void increment(){occurrences++;} public int occurrences(){return occurrences;}
@@ -21,4 +24,5 @@ public final class Finding {
     public Confidence confidence(){return confidence;} public Location location(){return location;} public String fieldName(){return fieldName;}
     public String detectionPath(){return detectionPath;} public String evidence(){return evidence;} public String valueHash(){return valueHash;}
     public TrafficTransaction traffic(){return traffic;} public Instant firstSeen(){return firstSeen;}
+    public Fingerprints.DigestKey trafficKey(){return trafficKey;}
 }

@@ -6,6 +6,8 @@ import io.github.sensitivescanner.traffic.TrafficRepository;
 import io.github.sensitivescanner.traffic.TrafficTransaction;
 
 import java.util.List;
+import java.util.Optional;
+import io.github.sensitivescanner.traffic.Fingerprints;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -43,6 +45,25 @@ public final class TrafficCollector {
         }
         return new CollectionResult(stats.collected, stats.skippedOversized, stats.errors);
     }
+
+    public Optional<TrafficTransaction> resolve(TrafficTransaction metadata,Fingerprints.DigestKey key) {
+        return switch(metadata.source()){
+            case LIVE_CAPTURE -> capturedRepository.find(key);
+            case LOGGER_CSV -> importedRepository.find(key);
+            case PROXY_HISTORY -> resolveProxy(metadata,key);
+            case SITE_MAP -> resolveSiteMap(metadata,key);
+        };
+    }
+
+    private Optional<TrafficTransaction> resolveProxy(TrafficTransaction metadata,Fingerprints.DigestKey key){
+        try{for(var message:api.proxy().history()){var request=message.request();if(!sameMetadata(metadata,request.url(),request.method()))continue;ByteArray requestBytes=request.toByteArray();ByteArray responseBytes=message.hasResponse()?message.response().toByteArray():null;TrafficTransaction candidate=MontoyaTrafficAdapter.proxy(message,requestBytes,responseBytes);if(Fingerprints.transactionKey(candidate).equals(key))return Optional.of(candidate);}}catch(RuntimeException ignored){}return Optional.empty();
+    }
+
+    private Optional<TrafficTransaction> resolveSiteMap(TrafficTransaction metadata,Fingerprints.DigestKey key){
+        try{for(var message:api.siteMap().requestResponses()){var request=message.request();if(!sameMetadata(metadata,request.url(),request.method()))continue;ByteArray requestBytes=request.toByteArray();ByteArray responseBytes=message.hasResponse()?message.response().toByteArray():null;TrafficTransaction candidate=MontoyaTrafficAdapter.siteMap(message,requestBytes,responseBytes);if(Fingerprints.transactionKey(candidate).equals(key))return Optional.of(candidate);}}catch(RuntimeException ignored){}return Optional.empty();
+    }
+
+    private boolean sameMetadata(TrafficTransaction metadata,String url,String method){return metadata.url().equals(url)&&metadata.method().equalsIgnoreCase(method);}
 
     private void streamProxy(boolean inScopeOnly, int maximumMessageBytes,
                              AtomicBoolean cancelled, Consumer<TrafficTransaction> sink,

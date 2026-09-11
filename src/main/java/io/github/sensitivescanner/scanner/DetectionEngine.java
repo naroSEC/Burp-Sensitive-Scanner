@@ -147,7 +147,7 @@ public final class DetectionEngine {
                     fingerprint, rule.id(), rule.category(), rule.name(), rule.description(),
                     rule.severity(), match.confidence(), artifact.location(), match.fieldName(),
                     artifact.path(), evidence(match.value()), Fingerprints.hash(match.value()),
-                    findingTraffic));
+                    findingTraffic,transactionKey));
         }
 
         private String evidence(String value) {
