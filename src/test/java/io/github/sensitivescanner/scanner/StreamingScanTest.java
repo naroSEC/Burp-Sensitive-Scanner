@@ -10,6 +10,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.jupiter.api.Assertions.*;
 
 class StreamingScanTest {
+    @Test void scansFindingsBeyondThePreviousTwoMiBBodyLimit() {
+        DetectionEngine engine = new DetectionEngine(RuleCatalog.defaults());
+        String body = "a".repeat(3 * 1024 * 1024) + " security-team@example.invalid";
+        var result = engine.scan(List.of(TestFixtures.response(body)), new ScanSettings(),
+                new AtomicBoolean(), (a,b) -> {});
+        assertTrue(result.findings().stream().anyMatch(f -> f.ruleId().equals("SENSITIVE-EMAIL")));
+        assertEquals(0, result.skippedOversized());
+    }
+
     @Test void parallelScanProducesSameFindingsAsSingleThread() {
         DetectionEngine engine = new DetectionEngine(RuleCatalog.defaults());
         String token = "AKIA" + "0".repeat(16);

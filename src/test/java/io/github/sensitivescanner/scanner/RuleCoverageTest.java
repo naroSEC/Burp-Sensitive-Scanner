@@ -14,9 +14,22 @@ class RuleCoverageTest {
     private Set<String> scan(TrafficTransaction transaction,ScanSettings settings){return new DetectionEngine(RuleCatalog.defaults()).scan(List.of(transaction),settings,new AtomicBoolean(),(a,b)->{}).findings().stream().map(f->f.ruleId()).collect(Collectors.toSet());}
 
     @Test void coversSensitiveDiscovererResourceAndIdentityFamilies(){
-        String body="Contact security-team@example.invalid at 10.20.30.40. Storage: https://audit-data.s3.ap-northeast-2.amazonaws.com and gs://audit-bucket-safe. arn:aws:s3:::audit-bucket-safe";
+        String body="Contact security-team@example.invalid at 10.20.30.40 or 127.0.0.1. Storage: https://audit-data.s3.ap-northeast-2.amazonaws.com and gs://audit-bucket-safe. arn:aws:s3:::audit-bucket-safe";
         Set<String> found=scan(TestFixtures.response(body),new ScanSettings());
-        assertTrue(found.containsAll(Set.of("SENSITIVE-EMAIL","SENSITIVE-PRIVATE-IP","SENSITIVE-S3-BUCKET","SENSITIVE-GCS-BUCKET","SENSITIVE-AWS-ARN")),found.toString());
+        assertTrue(found.containsAll(Set.of("SENSITIVE-EMAIL","SENSITIVE-PRIVATE-IP","SENSITIVE-LOOPBACK-IP","SENSITIVE-S3-BUCKET","SENSITIVE-GCS-BUCKET","SENSITIVE-AWS-ARN")),found.toString());
+    }
+
+    @Test void detectsSensitiveDiscovererCompatibleCredentialContextWithoutAcceptingPlaceholders(){
+        String body="api.key => \"Zp7N4vQ2sR8xL5mT1cK9wB3\"; secret(value): 'D7kX9pQ2mL8zR4'";
+        Set<String> found=scan(TestFixtures.response(body),new ScanSettings());
+        assertTrue(found.contains("SENSITIVE-GENERIC-API-KEY"),found.toString());
+        assertTrue(found.contains("SENSITIVE-GENERIC-SECRET"),found.toString());
+        assertFalse(scan(TestFixtures.response("api.key => \"YOUR_API_KEY\""),new ScanSettings()).contains("SENSITIVE-GENERIC-API-KEY"));
+    }
+
+    @Test void detectsEnvironmentFileReferencesButIgnoresRuntimeEnvironmentAccess(){
+        assertTrue(scan(TestFixtures.response("Deployment accidentally included .env.production"),new ScanSettings()).contains("SENSITIVE-ENV-REFERENCE"));
+        assertFalse(scan(TestFixtures.response("const region = process.env.REGION"),new ScanSettings()).contains("SENSITIVE-ENV-REFERENCE"));
     }
 
     @Test void detectsSensitiveAndServerSideFileExtensionsOnlyFromRequestUrl(){

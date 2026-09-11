@@ -9,9 +9,10 @@ import java.util.HashMap;
 import io.github.sensitivescanner.model.ScanArea;
 
 public final class ScanSettings {
-    public int maximumBodySize=2*1024*1024;
-    public int maximumInputSize=4*1024*1024;
+    public int maximumBodySize=10*1024*1024;
+    public int maximumInputSize=11*1024*1024;
     public int maximumDecodedSize=2*1024*1024;
+    public int maximumNormalizationInputSize=2*1024*1024;
     public int maximumDecodeDepth=2;
     public int scannerThreads=Math.max(2,Math.min(4,Runtime.getRuntime().availableProcessors()/2));
     public double entropyThreshold=3.5;

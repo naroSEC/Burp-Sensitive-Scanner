@@ -73,9 +73,11 @@ public final class DetectionEngine {
                 Set<io.github.sensitivescanner.model.ScanArea> configured = settings.ruleAreas.getOrDefault(rule.id(), rule.areas());
                 for (var area : configured) if (settings.enabledAreas.contains(area)) rulesByArea.get(area).add(rule);
             }
+            int queueCapacity = Math.max(1, Math.min(settings.scannerThreads,
+                    (32 * 1024 * 1024) / Math.max(1, settings.maximumInputSize)));
             executor = settings.scannerThreads <= 1 ? null : new ThreadPoolExecutor(
                     settings.scannerThreads, settings.scannerThreads, 30, TimeUnit.SECONDS,
-                    new ArrayBlockingQueue<>(settings.scannerThreads),
+                    new ArrayBlockingQueue<>(queueCapacity),
                     runnable -> { Thread thread = new Thread(runnable, "sensitive-scanner-worker"); thread.setDaemon(true); return thread; },
                     new ThreadPoolExecutor.CallerRunsPolicy());
         }

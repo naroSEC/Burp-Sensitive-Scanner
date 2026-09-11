@@ -9,7 +9,7 @@ public final class Normalizer {
         List<TextArtifact> out=new ArrayList<>(); Deque<TextArtifact> q=new ArrayDeque<>(); Set<String> seen=new HashSet<>(); q.add(root);
         while(!q.isEmpty()){
             TextArtifact a=q.remove(); if(a.text()==null||a.text().length()>settings.maximumInputSize||!seen.add(a.text()))continue; out.add(a);
-            if(a.depth()>=settings.maximumDecodeDepth)continue;
+            if(a.depth()>=settings.maximumDecodeDepth||a.text().length()>settings.maximumNormalizationInputSize)continue;
             add(q,a,urlDecode(a.text()),"URL decoded",settings); add(q,a,htmlDecode(a.text()),"HTML entity decoded",settings);
             add(q,a,jsonUnescape(a.text()),"JSON unescaped",settings);
             String compact=a.text().trim(); if(isBase64Candidate(compact)){

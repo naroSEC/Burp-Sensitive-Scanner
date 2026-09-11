@@ -31,7 +31,7 @@ Extension은 Montoya API `2026.2`를 기준으로 빌드됩니다. Montoya API�
 빌드가 끝나면 다음 파일이 생성됩니다.
 
 ```text
-build/libs/burp-sensitive-scanner-1.1.3.jar
+build/libs/burp-sensitive-scanner-1.1.4.jar
 ```
 
 Burp에서 **Extensions → Installed → Add → Java**를 선택하고 JAR 파일을 지정합니다. 설치가 완료되면 상단에 **Sensitive Scanner** 탭이 나타납니다.
@@ -75,12 +75,12 @@ Base64 여부가 확실하지 않은 값은 원문을 그대로 보관합니다.
 - Azure client secret 후보
 - GitHub, GitLab, Slack, Stripe, SendGrid, Mailgun, NuGet, Square, Twilio, OpenAI token
 - JWT, Bearer token, Basic Authorization
-- API key, API secret, client secret, access/refresh/session token
+- API key, API secret, client secret, access/refresh/session token과 문맥형 key/secret 표현
 - RSA, EC, OpenSSH, PKCS#8 및 일반 PEM private key
 - JDBC, PostgreSQL, MySQL, MongoDB, Redis credential URI
 - 민감한 field 이름과 결합된 generic secret
 - AWS S3, Azure Blob Storage, Google Cloud Storage, Firebase URL과 AWS ARN
-- 이메일 주소와 사설 IPv4 주소
+- 이메일 주소, 사설 IPv4 주소와 loopback 주소
 - 인증서, 키 저장소, 데이터베이스, VPN 설정, 백업 및 패킷 캡처 파일
 - PHP, ASP.NET, JSP, ColdFusion을 포함한 서버 사이드 소스 파일
 - `.env`, `.git/config`, cloud credential, Terraform state, source map, heap dump 같은 노출 위험 파일
@@ -89,7 +89,7 @@ Request URL, request header, request body, response header, response body를 각
 
 기본 rule은 개별적으로 활성화할 수 있으며 **Add Regex**에서 사용자 정규식을 추가할 수 있습니다. 이름, 설명, severity와 검사 영역을 함께 저장하고, 잘못된 정규식은 등록 전에 확인합니다. 기본 rule의 정규식은 고정되어 있지만 검사 영역은 편집할 수 있습니다.
 
-Rule 범위는 PortSwigger의 [Sensitive Discoverer](https://github.com/portswigger/sensitive-discoverer)가 제공하는 credential, cloud resource, 민감 파일 확장자를 기준으로 빠짐없이 대조했고, web security assessment에서 자주 확인하는 source code, infrastructure configuration, CI/CD credential file을 추가했습니다.
+Rule 범위는 PortSwigger의 [Sensitive Discoverer](https://github.com/portswigger/sensitive-discoverer)가 제공하는 credential, cloud resource, 민감 파일 확장자와 대조해 반영했고, web security assessment에서 자주 확인하는 source code, infrastructure configuration, CI/CD credential file을 추가했습니다.
 
 단순히 긴 문자열을 secret으로 간주하지 않습니다. 각 rule은 vendor prefix, token 구조, field 이름, 길이, 문자 집합과 Shannon entropy를 조합해 confidence를 계산합니다. UUID, 일반적인 hash, 긴 숫자 ID, frontend asset hash 및 placeholder는 별도로 걸러냅니다.
 
@@ -115,7 +115,9 @@ Transaction 중복 제거에는 HTTP method, normalized URL, HTTP service, reque
 
 화면은 **View**와 **Options**로 나뉩니다. View에는 scan 실행, 결과 필터와 HTTP 원문 확인 기능만 표시하고, traffic source, scan area, scanner limit과 rule 관리는 Options에 모았습니다.
 
-Scan은 Swing EDT 밖에서 실행되며 bounded worker queue로 여러 transaction을 병렬 분석합니다. 기본 worker 수는 CPU 수에 따라 최대 4개로 정하고 Options에서 1–32 사이로 조정할 수 있습니다. Queue는 worker 수만큼만 유지해 대규모 history에서도 병렬 처리 때문에 raw message가 무제한 쌓이지 않습니다. 선택하지 않은 영역은 parsing과 decoding을 생략하고, Base64 후보 검사는 정규식 compilation 없이 처리합니다.
+Scan은 Swing EDT 밖에서 실행되며 bounded worker queue로 여러 transaction을 병렬 분석합니다. 기본 worker 수는 CPU 수에 따라 최대 4개로 정하고 Options에서 1–32 사이로 조정할 수 있습니다. Queue 크기는 최대 body 설정에 맞춰 자동으로 줄어들어 큰 JavaScript 응답이 동시에 대기하며 heap을 점유하지 않습니다. 선택하지 않은 영역은 parsing과 decoding을 생략하고, Base64 후보 검사는 정규식 compilation 없이 처리합니다.
+
+기본 body 한도는 10 MiB입니다. 큰 응답도 원문 규칙으로 검사하지만 URL/HTML/JSON/Base64 normalization은 2 MiB 이하 입력에만 적용해 대용량 bundle의 임시 복사본이 heap에 쌓이지 않도록 제한합니다.
 
 UI에서 다음 항목을 조정할 수 있습니다.
 
