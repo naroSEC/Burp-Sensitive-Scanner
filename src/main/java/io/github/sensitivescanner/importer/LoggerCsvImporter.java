@@ -30,7 +30,7 @@ public final class LoggerCsvImporter {
                 String method=first(value(row,headers,"method","http method","request method"),methodFromRequest(request));
                 String tool=first(value(row,headers,"tool","burp tool","source tool"),"Logger");
                 Instant time=parseTime(value(row,headers,"time","timestamp","date"));
-                TrafficTransaction tx=new TrafficTransaction(time,TrafficSource.LOGGER_CSV,tool,host,port,tls,method,url,request.getBytes(StandardCharsets.UTF_8),response.getBytes(StandardCharsets.UTF_8));
+                TrafficTransaction tx=TrafficTransaction.fromOwnedBytes(time,TrafficSource.LOGGER_CSV,tool,host,port,tls,method,url,request.getBytes(StandardCharsets.UTF_8),response.getBytes(StandardCharsets.UTF_8));
                 if(repository.add(tx))imported++;else duplicate++;
             }catch(RuntimeException e){malformed++;if(errors.size()<20)errors.add("Row "+row.getRecordNumber()+": "+safeMessage(e));}}
         }catch(Exception e){errors.add("CSV parse error: "+safeMessage(e));}

@@ -10,6 +10,8 @@ public final class ScanSettings {
     public int maximumDecodedSize=2*1024*1024;
     public int maximumDecodeDepth=2;
     public double entropyThreshold=3.5;
+    public int maximumFindings=10_000;
+    public long maximumRetainedFindingBytes=64L*1024*1024;
     public boolean scanRequest=true, scanResponse=true;
     public Confidence minimumConfidence=Confidence.LOW;
     public final Set<String> disabledRules=new HashSet<>();

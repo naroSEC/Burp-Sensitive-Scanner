@@ -31,7 +31,7 @@ Extension은 Montoya API `2026.2`를 기준으로 빌드됩니다. Montoya API�
 빌드가 끝나면 다음 파일이 생성됩니다.
 
 ```text
-build/libs/burp-sensitive-scanner-1.0.0.jar
+build/libs/burp-sensitive-scanner-1.0.1.jar
 ```
 
 Burp에서 **Extensions → Installed → Add → Java**를 선택하고 JAR 파일을 지정합니다. 설치가 완료되면 상단에 **Sensitive Scanner** 탭이 나타납니다.
@@ -115,7 +115,9 @@ UI에서 다음 항목을 조정할 수 있습니다.
 - rule별 활성화 여부
 - live capture 최대 entry 수
 
-Live capture repository는 기본 20,000개 트랜잭션을 보관합니다. 한도에 도달하면 오래된 항목부터 제거하고 UI에 누적 수를 표시합니다. Logger import 데이터는 별도 repository에 저장됩니다.
+Live capture repository는 최대 20,000개 또는 64 MiB까지 보관합니다. Logger import 데이터는 별도 repository에서 최대 128 MiB까지 유지합니다. 어느 한도에든 도달하면 오래된 항목부터 제거하고 UI에 누적 수를 표시합니다.
+
+Proxy History와 Site Map은 전체 메시지를 별도 목록에 복사하지 않습니다. 각 트랜잭션을 가져오는 즉시 중복 판별과 탐지를 수행하고, finding이 없는 원문은 다음 트랜잭션으로 넘어갈 때 해제합니다. Finding에 연결하는 request/response 원문도 Scan당 64 MiB로 제한됩니다.
 
 ## Project layout
 

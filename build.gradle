@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'io.github.sensitivescanner'
-version = '1.0.0'
+version = '1.0.1'
 
 repositories { mavenCentral() }
 
@@ -26,7 +26,7 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 17
 }
 
-tasks.test { useJUnitPlatform() }
+tasks.test { useJUnitPlatform(); maxHeapSize = '128m' }
 
 tasks.shadowJar {
     archiveBaseName = 'burp-sensitive-scanner'
