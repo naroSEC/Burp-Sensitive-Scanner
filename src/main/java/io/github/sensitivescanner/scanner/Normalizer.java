@@ -20,9 +20,9 @@ public final class Normalizer {
     }
     private void add(Deque<TextArtifact> q,TextArtifact a,String value,String op,ScanSettings s){if(value!=null&&!value.equals(a.text())&&value.length()<=s.maximumDecodedSize&&printable(value))q.add(new TextArtifact(value,a.location(),a.fieldName(),a.path()+" -> "+op,a.depth()+1));}
     private String urlDecode(String s){try{return s.contains("%")?URLDecoder.decode(s,StandardCharsets.UTF_8):s;}catch(Exception e){return s;}}
-    private String htmlDecode(String s){return s.replace("&quot;","\"").replace("&#39;","'").replace("&amp;","&").replace("&lt;","<").replace("&gt;",">");}
+    private String htmlDecode(String s){return s.indexOf('&')<0?s:s.replace("&quot;","\"").replace("&#39;","'").replace("&amp;","&").replace("&lt;","<").replace("&gt;",">");}
     private String jsonUnescape(String s){if(!s.contains("\\"))return s;return s.replace("\\\"","\"").replace("\\/","/").replace("\\n","\n").replace("\\r","\r").replace("\\t","\t").replace("\\\\","\\");}
-    private boolean isBase64Candidate(String s){return s.length()>=16&&s.length()<=4*1024*1024&&s.matches("[A-Za-z0-9_+/=-]+")&&(s.length()%4==0||s.indexOf('-')>=0||s.indexOf('_')>=0);}
+    private boolean isBase64Candidate(String s){if(s.length()<16||s.length()>4*1024*1024||!(s.length()%4==0||s.indexOf('-')>=0||s.indexOf('_')>=0))return false;for(int i=0;i<s.length();i++){char c=s.charAt(i);if(!(c>='A'&&c<='Z'||c>='a'&&c<='z'||c>='0'&&c<='9'||c=='_'||c=='+'||c=='/'||c=='='||c=='-'))return false;}return true;}
     private String pad(String s){return s+"=".repeat((4-s.length()%4)%4);}
     private boolean printable(String s){if(s.isEmpty())return false;long good=s.chars().filter(c->c==9||c==10||c==13||c>=32).count();return good>=(long)(s.length()*.85);}
 }

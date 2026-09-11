@@ -34,12 +34,12 @@ public final class CustomRegexRule implements DetectionRule {
     public Set<ScanArea> areas(){return areas;} public boolean custom(){return true;}
 
     public List<RuleMatch> find(TextArtifact artifact, ScanSettings settings) {
-        List<RuleMatch> matches = new ArrayList<>();
+        List<RuleMatch> matches = null;
         Matcher matcher = pattern.matcher(artifact.text());
         while (matcher.find()) {
             String value = matcher.group();
-            if (!value.isEmpty()) matches.add(new RuleMatch(value, artifact.fieldName(), Confidence.HIGH));
+            if (!value.isEmpty()) { if (matches == null) matches = new ArrayList<>(); matches.add(new RuleMatch(value, artifact.fieldName(), Confidence.HIGH)); }
         }
-        return matches;
+        return matches == null ? List.of() : matches;
     }
 }

@@ -15,6 +15,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.*;
 import java.util.function.BiConsumer;
 
 public final class DetectionEngine {
@@ -42,7 +45,7 @@ public final class DetectionEngine {
         return new ScanSession(settings, cancelled);
     }
 
-    /** Stateful, single-threaded scan session. Transactions can be supplied one at a time. */
+    /** Stateful scan session with a bounded worker queue. Transactions are supplied one at a time. */
     public final class ScanSession {
         private final ScanSettings settings;
         private final AtomicBoolean cancelled;
@@ -51,10 +54,12 @@ public final class DetectionEngine {
         private final Map<String, Finding> findings = new LinkedHashMap<>();
         private final Map<Fingerprints.DigestKey, TrafficTransaction> retainedTraffic = new HashMap<>();
         private final Set<Fingerprints.DigestKey> omittedTraffic = new HashSet<>();
-        private int scanned;
+        private final AtomicInteger scanned = new AtomicInteger();
         private int skippedBinary;
         private int skippedOversized;
-        private int errors;
+        private final AtomicInteger errors = new AtomicInteger();
+        private final AtomicReference<Throwable> fatal = new AtomicReference<>();
+        private final ExecutorService executor;
         private int omittedRawMessages;
         private int droppedFindings;
         private long retainedMessageBytes;
@@ -68,6 +73,11 @@ public final class DetectionEngine {
                 Set<io.github.sensitivescanner.model.ScanArea> configured = settings.ruleAreas.getOrDefault(rule.id(), rule.areas());
                 for (var area : configured) if (settings.enabledAreas.contains(area)) rulesByArea.get(area).add(rule);
             }
+            executor = settings.scannerThreads <= 1 ? null : new ThreadPoolExecutor(
+                    settings.scannerThreads, settings.scannerThreads, 30, TimeUnit.SECONDS,
+                    new ArrayBlockingQueue<>(settings.scannerThreads),
+                    runnable -> { Thread thread = new Thread(runnable, "sensitive-scanner-worker"); thread.setDaemon(true); return thread; },
+                    new ThreadPoolExecutor.CallerRunsPolicy());
         }
 
         public void accept(TrafficTransaction transaction) {
@@ -84,7 +94,17 @@ public final class DetectionEngine {
                 boolean binaryRequest = transaction.requestBodyIsBinary();
                 boolean binaryResponse = transaction.responseBodyIsBinary();
                 if (binaryRequest || binaryResponse) skippedBinary++;
+                if (executor == null) analyze(transaction, transactionKey, binaryRequest, binaryResponse);
+                else executor.execute(() -> analyze(transaction, transactionKey, binaryRequest, binaryResponse));
+            } catch (RuntimeException e) {
+                errors.incrementAndGet();
+            }
+        }
 
+        private void analyze(TrafficTransaction transaction, Fingerprints.DigestKey transactionKey,
+                             boolean binaryRequest, boolean binaryResponse) {
+            if (cancelled.get()) return;
+            try {
                 List<TextArtifact> artifacts = extract(transaction, binaryRequest, binaryResponse);
                 for (TextArtifact raw : artifacts) {
                     if (cancelled.get()) return;
@@ -99,13 +119,15 @@ public final class DetectionEngine {
                         }
                     }
                 }
-                scanned++;
+                scanned.incrementAndGet();
             } catch (RuntimeException e) {
-                errors++;
+                errors.incrementAndGet();
+            } catch (OutOfMemoryError error) {
+                fatal.compareAndSet(null,error);cancelled.set(true);
             }
         }
 
-        private void addFinding(TrafficTransaction transaction,
+        private synchronized void addFinding(TrafficTransaction transaction,
                                 Fingerprints.DigestKey transactionKey,
                                 TextArtifact artifact, DetectionRule rule, RuleMatch match) {
             String fingerprint = Fingerprints.finding(
@@ -152,14 +174,18 @@ public final class DetectionEngine {
         }
 
         public int uniqueCount() { return uniqueTraffic.size(); }
-        public int scannedCount() { return scanned; }
+        public int scannedCount() { return scanned.get(); }
 
         public ScanResult finish(int collected, int externallySkippedOversized, int externalErrors) {
+            awaitWorkers();
+            Throwable failure=fatal.get();if(failure instanceof OutOfMemoryError error)throw error;
             return new ScanResult(
-                    collected, uniqueTraffic.size(), scanned, skippedBinary,
+                    collected, uniqueTraffic.size(), scanned.get(), skippedBinary,
                     skippedOversized + externallySkippedOversized, List.copyOf(findings.values()),
-                    errors + externalErrors, cancelled.get(), omittedRawMessages, droppedFindings);
+                    errors.get() + externalErrors, cancelled.get(), omittedRawMessages, droppedFindings);
         }
+
+        private void awaitWorkers(){if(executor==null)return;executor.shutdown();try{while(!executor.awaitTermination(1,TimeUnit.SECONDS)){if(cancelled.get())executor.shutdownNow();}}catch(InterruptedException e){cancelled.set(true);executor.shutdownNow();Thread.currentThread().interrupt();}}
 
         private List<TextArtifact> extract(TrafficTransaction transaction,
                                            boolean binaryRequest, boolean binaryResponse) {
@@ -185,15 +211,15 @@ public final class DetectionEngine {
                     raw.length(), split + (raw.startsWith("\r\n", split) ? 4 : 2)));
 
             if (request) {
-                output.add(new TextArtifact(url, Location.REQUEST_URL, "", "Request URL", 0));
-                int query = url.indexOf('?');
-                if (query >= 0) {
-                    output.add(new TextArtifact(url.substring(query + 1),
-                            Location.REQUEST_QUERY, "", "Request Query", 0));
+                if (settings.enabledAreas.contains(io.github.sensitivescanner.model.ScanArea.REQUEST_URL)) {
+                    output.add(new TextArtifact(url, Location.REQUEST_URL, "", "Request URL", 0));
+                    int query = url.indexOf('?');
+                    if (query >= 0) output.add(new TextArtifact(url.substring(query + 1),Location.REQUEST_QUERY, "", "Request Query", 0));
                 }
             }
 
-            for (String line : headers.split("\\r?\\n")) {
+            boolean includeHeaders=settings.enabledAreas.contains(request?io.github.sensitivescanner.model.ScanArea.REQUEST_HEADERS:io.github.sensitivescanner.model.ScanArea.RESPONSE_HEADERS);
+            if(includeHeaders) for (String line : headers.split("\\r?\\n")) {
                 int colon = line.indexOf(':');
                 if (colon <= 0) continue;
                 String name = line.substring(0, colon).trim();
@@ -207,7 +233,8 @@ public final class DetectionEngine {
                         (request ? "Request" : "Response") + " Header " + name, 0));
             }
 
-            if (!skipBody && body.length() <= settings.maximumBodySize && !body.isEmpty()) {
+            boolean includeBody=settings.enabledAreas.contains(request?io.github.sensitivescanner.model.ScanArea.REQUEST_BODY:io.github.sensitivescanner.model.ScanArea.RESPONSE_BODY);
+            if (includeBody && !skipBody && body.length() <= settings.maximumBodySize && !body.isEmpty()) {
                 Location location = request ? Location.REQUEST_BODY
                         : (javascript ? Location.RESPONSE_JAVASCRIPT : Location.RESPONSE_BODY);
                 output.add(new TextArtifact(body, location, "",

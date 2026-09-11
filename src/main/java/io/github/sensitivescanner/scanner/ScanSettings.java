@@ -13,6 +13,7 @@ public final class ScanSettings {
     public int maximumInputSize=4*1024*1024;
     public int maximumDecodedSize=2*1024*1024;
     public int maximumDecodeDepth=2;
+    public int scannerThreads=Math.max(2,Math.min(4,Runtime.getRuntime().availableProcessors()/2));
     public double entropyThreshold=3.5;
     public int maximumFindings=10_000;
     public int maximumEvidenceLength=64*1024;

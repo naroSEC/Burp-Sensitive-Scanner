@@ -31,7 +31,7 @@ Extension은 Montoya API `2026.2`를 기준으로 빌드됩니다. Montoya API�
 빌드가 끝나면 다음 파일이 생성됩니다.
 
 ```text
-build/libs/burp-sensitive-scanner-1.1.0.jar
+build/libs/burp-sensitive-scanner-1.1.1.jar
 ```
 
 Burp에서 **Extensions → Installed → Add → Java**를 선택하고 JAR 파일을 지정합니다. 설치가 완료되면 상단에 **Sensitive Scanner** 탭이 나타납니다.
@@ -85,7 +85,7 @@ Base64 여부가 확실하지 않은 값은 원문을 그대로 보관합니다.
 - PHP, ASP.NET, JSP, ColdFusion을 포함한 서버 사이드 소스 파일
 - `.env`, `.git/config`, cloud credential, Terraform state, source map, heap dump 같은 노출 위험 파일
 
-Request URL, request header, request body, response header, response body를 각각 켜고 끌 수 있습니다. Rules 탭에서는 rule마다 검사 영역을 별도로 지정할 수 있습니다. URL과 파일명 전용 rule은 body를 훑지 않으므로 일반 문서에 등장하는 확장자 때문에 결과가 늘어나는 일을 줄였습니다.
+Request URL, request header, request body, response header, response body를 각각 켜고 끌 수 있습니다. **Options** 탭에서는 rule마다 검사 영역을 별도로 지정할 수 있습니다. URL과 파일명 전용 rule은 body를 훑지 않으므로 일반 문서에 등장하는 확장자 때문에 결과가 늘어나는 일을 줄였습니다.
 
 기본 rule은 개별적으로 활성화할 수 있으며 **Add Regex**에서 사용자 정규식을 추가할 수 있습니다. 이름, 설명, severity와 검사 영역을 함께 저장하고, 잘못된 정규식은 등록 전에 확인합니다. 기본 rule의 정규식은 고정되어 있지만 검사 영역은 편집할 수 있습니다.
 
@@ -111,12 +111,15 @@ Transaction 중복 제거에는 HTTP method, normalized URL, HTTP service, reque
 
 ## Performance and settings
 
-Scan은 Swing EDT 밖의 background worker에서 실행됩니다. 진행률을 확인할 수 있고 **Stop** 버튼으로 중단할 수 있습니다.
+화면은 **View**와 **Options**로 나뉩니다. View에는 scan 실행, 결과 필터와 HTTP 원문 확인 기능만 표시하고, traffic source, scan area, scanner limit과 rule 관리는 Options에 모았습니다.
+
+Scan은 Swing EDT 밖에서 실행되며 bounded worker queue로 여러 transaction을 병렬 분석합니다. 기본 worker 수는 CPU 수에 따라 최대 4개로 정하고 Options에서 1–32 사이로 조정할 수 있습니다. Queue는 worker 수만큼만 유지해 대규모 history에서도 병렬 처리 때문에 raw message가 무제한 쌓이지 않습니다. 선택하지 않은 영역은 parsing과 decoding을 생략하고, Base64 후보 검사는 정규식 compilation 없이 처리합니다.
 
 UI에서 다음 항목을 조정할 수 있습니다.
 
 - Target scope 또는 전체 트래픽
 - request URL/header/body와 response header/body 검사 여부
+- scanner worker 수
 - 최대 body 크기
 - entropy threshold
 - 최대 decoding 깊이
@@ -127,7 +130,7 @@ UI에서 다음 항목을 조정할 수 있습니다.
 
 Live capture repository는 최대 20,000개 또는 64 MiB까지 보관합니다. Logger import 데이터는 별도 repository에서 최대 128 MiB까지 유지합니다. 어느 한도에든 도달하면 오래된 항목부터 제거하고 UI에 누적 수를 표시합니다.
 
-Proxy History와 Site Map은 전체 메시지를 별도 목록에 복사하지 않습니다. 각 트랜잭션을 가져오는 즉시 중복 판별과 탐지를 수행하고, finding이 없는 원문은 다음 트랜잭션으로 넘어갈 때 해제합니다. Finding에 연결하는 request/response 원문도 Scan당 64 MiB로 제한됩니다.
+Proxy History와 Site Map은 전체 메시지를 별도 목록에 복사하지 않습니다. 트랜잭션을 가져오는 즉시 중복을 확인하고 bounded queue로 넘기며, 분석이 끝난 원문은 finding이 없으면 해제합니다. Finding에 연결하는 request/response 원문도 Scan당 64 MiB로 제한됩니다.
 
 ## Project layout
 
